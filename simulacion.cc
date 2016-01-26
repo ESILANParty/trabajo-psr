@@ -26,11 +26,67 @@ main (int argc, char *argv[])
 
 
 
-  
+
   return 0;
 }
 
-Observador simulacion ()
+Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaquete,
+  uint32_t usuariosXbus, uint32_t numSwitches, uint32_t numServidores, double retardo)
 {
+  // Variables aleatorias del sistema
+  Ptr<NormalRandomVariable> tasaIn = CreateObject<NormalRandomVariable> ();
+  Ptr<NormalRandomVariable> tasaOut = CreateObject<NormalRandomVariable> ();
+  tasaIn->SetAttribute ("Mean", DoubleValue(tasaMediaIn));
+  tasaOut->SetAttribute ("Mean", DoubleValue(tasaMediaOut));
 
+  // Creacion de servidores con conexion P2P a un switch
+  NodeContainer p2pNodes;
+  p2pNodes.Create (numServidores+1);
+
+  // Creacion de bus CSMA de switches
+  NodeContainer csmaSwitchesNodes;
+  csmaSwitchesNodes.Add (p2pNodes.Get (0));
+  csmaSwitchesNodes.Create (numSwitches);
+
+  // Creacion de bus CSMA en cada switch con n equipos
+  NodeContainer csmaUsuariosNodes [numSwitches];
+  for (uint32_t i=1; i<=numSwitches; i++)
+  {
+    csmaUsuariosNodes[i].Add (p2pNodes.Get (i));
+    csmaUsuariosNodes[i].Create (usuariosXbus);
+  }
+
+  // Instalacion de los servidores a los P2P con el switch
+  // El nodo 0 es el switch y el resto los servidores conectados a el
+  PointToPointHelper pointToPoint [numServidores];
+  NetDeviceContainer p2pDevices [numServidores];
+  for(uint32_t i=1; i<=numServidores; i++)
+  {
+    pointToPoint[i].SetDeviceAttribute ("DataRate", StringValue ("54Mbps"));
+    pointToPoint[i].SetChannelAttribute ("Delay", StringValue ("1ms"));
+    p2pDevices[i] = pointToPoint[i].Install (p2pNodes.Get (0), p2pNodes.Get (i));
+  }
+
+  // Instalacion del bus CSMA de switches
+  CsmaHelper csmaSwitches;
+  NetDeviceContainer csmaSwitchesDevices;
+  csmaSwitches.SetChannelAttribute ("DataRate", StringValue ("100Mbps"));
+  csmaSwitches.SetChannelAttribute ("Delay", StringValue ("2ms"));
+  csmaSwitchesDevices = csma.Install (csmaSwitchesNodes);
+
+  // Instalacion de los buses CSMA de los usuarios conectados a cada switch
+  CsmaHelper csmaUsuarios [numSwitches];
+  NetDeviceContainer csmaUsuariosDevices [numSwitches];
+  for(uint32_t i=1; i<=numSwitches; i++)
+  {
+    csmaUsuarios.SetChannelAttribute ("DataRate", StringValue ("54Mbps"));
+    csmaUsuarios.SetChannelAttribute ("Delay", StringValue ("2ms"));
+    csmaUsuariosDevices[i] = csma.Install (csmaUsuariosNodes[i]);
+  }
+
+  // Lanzamos la simulación
+  Simulator::Run ();
+  Simulator::Destroy ();
+
+  return observador;
 }
