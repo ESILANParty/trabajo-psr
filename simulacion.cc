@@ -23,15 +23,35 @@ main (int argc, char *argv[])
   GlobalValue::Bind("ChecksumEnabled", BooleanValue(true));
   Time::SetResolution (Time::NS);
 
+  // Tasas en KB/s
+  double tasaMediaIn = 5.36;
+  double tasaMediaOut = 7.13;
+  // Paquetes en Bytes
+  uint32_t tamPaqueteIn = 136;
+  uint32_t tamPaqueteOut = 71;
+  uint32_t usuariosXbus;
+  uint32_t numSwitches;
+  uint32_t numServidores;
+  double retardo = 2;
 
-
-
+  // Parametros por linea de comandos
+  CommandLine cmd;
+  cmd.AddValue ("tasaMediaIn", "Tasa media de entrada en los equipos", tasaMediaIn);
+  cmd.AddValue ("tasaMediaOut", "Tasa media de salida en los equipos", tasaMediaOut);
+  cmd.AddValue ("tamPaqueteIn", "Tamaño de paquetes de entrada", tamPaqueteIn);
+  cmd.AddValue ("tamPaqueteOut", "Tamaño de paquetes de salida", tamPaqueteOut);
+  cmd.AddValue ("usuariosXbus", "Equipos de jugadores por cada bus CSMA", usuariosXbus);
+  cmd.AddValue ("numSwitches", "Numero de switches", numSwitches);
+  cmd.AddValue ("numServidores", "Numero de servidores", numServidores);
+  cmd.AddValue ("retardo", "Retardo de envio", retardo);
+  cmd.Parse (argc,argv);
 
   return 0;
 }
 
-Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaquete,
-  uint32_t usuariosXbus, uint32_t numSwitches, uint32_t numServidores, double retardo)
+Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqueteIn,
+  uint32_t tamPaqueteOut, uint32_t usuariosXbus, uint32_t numSwitches,
+  uint32_t numServidores, double retardo)
 {
   // Variables aleatorias del sistema
   Ptr<NormalRandomVariable> tasaIn = CreateObject<NormalRandomVariable> ();
@@ -70,7 +90,7 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   // Instalacion del bus CSMA de switches
   CsmaHelper csmaSwitches;
   NetDeviceContainer csmaSwitchesDevices;
-  csmaSwitches.SetChannelAttribute ("DataRate", StringValue ("100Mbps"));
+  csmaSwitches.SetChannelAttribute ("DataRate", StringValue ("54Mbps"));
   csmaSwitches.SetChannelAttribute ("Delay", StringValue ("2ms"));
   csmaSwitchesDevices = csma.Install (csmaSwitchesNodes);
 
