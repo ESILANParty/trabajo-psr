@@ -29,9 +29,9 @@ main (int argc, char *argv[])
   // Paquetes en Bytes
   uint32_t tamPaqueteIn = 136;
   uint32_t tamPaqueteOut = 71;
-  uint32_t usuariosXbus;
-  uint32_t numSwitches;
-  uint32_t numServidores;
+  uint32_t usuariosXbus = 15;
+  uint32_t numSwitches = 15;
+  uint32_t numServidores = 10;
   double retardo = 2;
 
   // Parametros por linea de comandos
@@ -70,7 +70,7 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
 
   // Creacion de bus CSMA en cada switch con n equipos
   NodeContainer csmaUsuariosNodes [numSwitches];
-  for (uint32_t i=1; i<=numSwitches; i++)
+  for (uint32_t i=0; i<numSwitches; i++)
   {
     csmaUsuariosNodes[i].Add (p2pNodes.Get (i));
     csmaUsuariosNodes[i].Create (usuariosXbus);
@@ -80,11 +80,11 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   // El nodo 0 es el switch y el resto los servidores conectados a el
   PointToPointHelper pointToPoint [numServidores];
   NetDeviceContainer p2pDevices [numServidores];
-  for(uint32_t i=1; i<=numServidores; i++)
+  for(uint32_t i=0; i<numServidores; i++)
   {
     pointToPoint[i].SetDeviceAttribute ("DataRate", StringValue ("54Mbps"));
     pointToPoint[i].SetChannelAttribute ("Delay", StringValue ("1ms"));
-    p2pDevices[i] = pointToPoint[i].Install (p2pNodes.Get (0), p2pNodes.Get (i));
+    p2pDevices[i] = pointToPoint[i].Install (p2pNodes.Get (0), p2pNodes.Get (i+1));
   }
 
   // Instalacion del bus CSMA de switches
@@ -97,12 +97,40 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   // Instalacion de los buses CSMA de los usuarios conectados a cada switch
   CsmaHelper csmaUsuarios [numSwitches];
   NetDeviceContainer csmaUsuariosDevices [numSwitches];
-  for(uint32_t i=1; i<=numSwitches; i++)
+  for(uint32_t i=0; i<numSwitches; i++)
   {
     csmaUsuarios.SetChannelAttribute ("DataRate", StringValue ("54Mbps"));
     csmaUsuarios.SetChannelAttribute ("Delay", StringValue ("2ms"));
     csmaUsuariosDevices[i] = csma.Install (csmaUsuariosNodes[i]);
   }
+
+  // Asignamos direcciones a cada una de las interfaces
+  // Utilizamos dos rangos de direcciones diferentes:
+  //    - un rango para los dos nodos del enlace
+  //      punto a punto
+  //    - un rango para los nodos de la red de área local.
+  Ipv4AddressHelper address;
+  Ipv4InterfaceContainer p2pInterfaces [numServidores];
+  for(uint32_t i=0; i<numServidores; i++)
+  {
+    address.SetBase ("10.1." << (i+1) << ".0", "255.255.255.0");
+    p2pInterfaces[i] = address.Assign (p2pDevices[i]);
+  }
+  Ipv4InterfaceContainer csmaSwitchesInterfaces;
+  address.SetBase ("10.1.2.0", "255.255.255.0");
+  csmaSwitchesInterfaces = address.Assign (csmaSwitchesDevices);
+  Ipv4InterfaceContainer csmaUsuariosInterfaces [numSwitches];
+  for(uint32_t i=0; i<numSwitches; i++)
+  {
+    address.SetBase ("10.1." << ((i+1) + (numServidores+1)) << ".0", "255.255.255.0");
+    csmaUsuariosInterfaces[i] = address.Assign (csmaUsuariosDevices[i]);
+  }
+
+  // Calculamos las rutas del escenario. Con este comando, los
+  //     nodos de la red de área local definen que para acceder
+  //     al nodo del otro extremo del enlace punto a punto deben
+  //     utilizar el primer nodo como ruta por defecto.
+  Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   // Lanzamos la simulación
   Simulator::Run ();
