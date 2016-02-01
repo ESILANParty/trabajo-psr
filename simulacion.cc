@@ -13,7 +13,7 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE ("Practica06");
+NS_LOG_COMPONENT_DEFINE ("fuentes12");
 
 Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqueteIn,
   uint32_t tamPaqueteOut, uint32_t usuariosXbus, uint32_t numSwitches,
