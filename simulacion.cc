@@ -15,7 +15,9 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("Practica06");
 
-Observador simulacion ();
+Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqueteIn,
+  uint32_t tamPaqueteOut, uint32_t usuariosXbus, uint32_t numSwitches,
+  uint32_t numServidores, double retardo);
 
 int aleatorio(uint32_t numServidores);
 
@@ -61,6 +63,9 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   tasaIn->SetAttribute ("Mean", DoubleValue(tasaMediaIn));
   tasaOut->SetAttribute ("Mean", DoubleValue(tasaMediaOut));
 
+  // Variable para calcular los estadisticos
+  Observador observador;
+
   // Creacion de servidores con conexion P2P a un switch
   NodeContainer p2pNodes;
   p2pNodes.Create (numServidores+1);
@@ -94,35 +99,40 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   NetDeviceContainer csmaSwitchesDevices;
   csmaSwitches.SetChannelAttribute ("DataRate", StringValue ("54Mbps"));
   csmaSwitches.SetChannelAttribute ("Delay", StringValue ("2ms"));
-  csmaSwitchesDevices = csma.Install (csmaSwitchesNodes);
+  csmaSwitchesDevices = csmaSwitches.Install (csmaSwitchesNodes);
 
   // Instalacion de los buses CSMA de los usuarios conectados a cada switch
   CsmaHelper csmaUsuarios [numSwitches];
   NetDeviceContainer csmaUsuariosDevices [numSwitches];
   for(uint32_t i=0; i<numSwitches; i++)
   {
-    csmaUsuarios.SetChannelAttribute ("DataRate", StringValue ("54Mbps"));
-    csmaUsuarios.SetChannelAttribute ("Delay", StringValue ("2ms"));
-    csmaUsuariosDevices[i] = csma.Install (csmaUsuariosNodes[i]);
+    csmaUsuarios[i].SetChannelAttribute ("DataRate", StringValue ("54Mbps"));
+    csmaUsuarios[i].SetChannelAttribute ("Delay", StringValue ("2ms"));
+    csmaUsuariosDevices[i] = csmaUsuarios[i].Install (csmaUsuariosNodes[i]);
   }
 
-  
-  
+
+
   Ipv4AddressHelper address;
   Ipv4InterfaceContainer p2pInterfaces [numServidores];
   for(uint32_t i=0; i<numServidores; i++)
   {
-    address.SetBase ("10.1." << (i+1) << ".0", "255.255.255.0");
+    std::ostringstream network;
+    network << "10.1." << (i+1) << ".0";
+    address.SetBase (network.str ().c_str (), "255.255.255.0");
     p2pInterfaces[i] = address.Assign (p2pDevices[i]);
   }
 
   Ipv4InterfaceContainer csmaSwitchesInterfaces;
   address.SetBase ("10.1.2.0", "255.255.255.0");
   csmaSwitchesInterfaces = address.Assign (csmaSwitchesDevices);
+
   Ipv4InterfaceContainer csmaUsuariosInterfaces [numSwitches];
   for(uint32_t i=0; i<numSwitches; i++)
   {
-    address.SetBase ("10.1." << ((i+1) + (numServidores+1)) << ".0", "255.255.255.0");
+    std::ostringstream network;
+    network << "10.1." << ((i+1) + (numServidores+1)) << ".0";
+    address.SetBase (network.str ().c_str (), "255.255.255.0");
     csmaUsuariosInterfaces[i] = address.Assign (csmaUsuariosDevices[i]);
   }
 
@@ -133,34 +143,36 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   // Creamos las aplicaciones serveridoras UDP en los nodos servidores
-  for(uint32_t i=1; i<numServidores; i++)
+  uint16_t port;
+  for(uint32_t i=1; i<=numServidores; i++)
   {
-    uint16_t port = 5000;
-    UdpServerHelper server (port); 
+    port = 5000;
+    UdpServerHelper server (port);
     ApplicationContainer apps = server.Install (p2pNodes.Get (i));
     apps.Start (Seconds (1.0));
     apps.Stop (Seconds (10.0));
   }
 
-  // Creamos las aplicaciones clientes UDP en los nodos clientes eligiendo el servidor de forma aleatoria. 
+  // Creamos las aplicaciones clientes UDP en los nodos clientes eligiendo el servidor de forma aleatoria.
   Time interPacketInterval = Seconds (0.025);
   uint32_t maxPacketCount = 10000;
   for(uint32_t i=0; i<numSwitches; i++)
   {
     for(uint32_t j=0; j<usuariosXbus; j++)
     {
-      servidor = aleatorio(numServidores);
-      serverAddress = Address (p2pInterfaces[servidor].GetAddress (servidor));
+      int servidor = aleatorio(numServidores);
+      Address serverAddress = Address (p2pInterfaces[servidor].GetAddress (1));
       UdpClientHelper client (serverAddress, port);
       client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
       client.SetAttribute ("Interval", TimeValue (interPacketInterval));
       client.SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
-      apps = client.Install (csmaUsuariosNodes[i].Get (j));
-    }
+      ApplicationContainer apps = client.Install (csmaUsuariosNodes[i].Get (j));
 
-  apps.Start (Seconds (2.0));
-  apps.Stop (Seconds (10.0));
-  
+      apps.Start (Seconds (2.0));
+      apps.Stop (Seconds (10.0));
+    }
+  }
+
 
 
 
@@ -175,12 +187,12 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
 int aleatorio(uint32_t numServidores)
 {
   double min = 0.0;
-  double max = numServidores+1;                                               //el máximo está fuera del intervalo que devuelve por eso sumamos 1.
+  double max = numServidores;                                               //el máximo está fuera del intervalo que devuelve por eso sumamos 1.
   Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable> ();
   x->SetAttribute ("Min", DoubleValue (min));
   x->SetAttribute ("Max", DoubleValue (max));
-  
+
   double value = x->GetValue ();
 
-  return value;
+  return (int) value;
 }
