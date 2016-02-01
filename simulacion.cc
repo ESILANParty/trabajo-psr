@@ -111,8 +111,19 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
     csmaUsuariosDevices[i] = csmaUsuarios[i].Install (csmaUsuariosNodes[i]);
   }
 
+  // Instalamos la pila TCP/IP en todos los nodos
+  InternetStackHelper stack;
+  for(uint32_t i=1; i<=numServidores; i++)
+  {
+    stack.Install (p2pNodes.Get (i));
+  }
+  stack.Install (csmaSwitchesNodes);
+  for(uint32_t i=1; i<=usuariosXbus; i++)
+  {
+    stack.Install (csmaUsuariosNodes.Get (i));
+  }
 
-
+  // Asignamos direcciones a cada una de las interfaces
   Ipv4AddressHelper address;
   Ipv4InterfaceContainer p2pInterfaces [numServidores];
   for(uint32_t i=0; i<numServidores; i++)
