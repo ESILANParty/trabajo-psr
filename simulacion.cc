@@ -13,7 +13,7 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE ("Practica06");
+NS_LOG_COMPONENT_DEFINE ("fuentes12");
 
 Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqueteIn,
   uint32_t tamPaqueteOut, uint32_t usuariosXbus, uint32_t numSwitches,
@@ -118,9 +118,12 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
     stack.Install (p2pNodes.Get (i));
   }
   stack.Install (csmaSwitchesNodes);
-  for(uint32_t i=1; i<=usuariosXbus; i++)
+  for(uint32_t i=0; i<numSwitches; i++)
   {
-    stack.Install (csmaUsuariosNodes.Get (i));
+    for(uint32_t j=1; j<=usuariosXbus; j++)
+    {
+      stack.Install (csmaUsuariosNodes[i].Get (j));
+    }
   }
 
   // Asignamos direcciones a cada una de las interfaces
@@ -154,35 +157,39 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   // Creamos las aplicaciones serveridoras UDP en los nodos servidores
-  uint16_t port;
+  uint16_t port = 5000;
+  UdpServerHelper server (port);
+  NodeContainer serverNodes;
   for(uint32_t i=1; i<=numServidores; i++)
   {
-    port = 5000;
-    UdpServerHelper server (port);
-    ApplicationContainer apps = server.Install (p2pNodes.Get (i));
-    apps.Start (Seconds (1.0));
-    apps.Stop (Seconds (10.0));
+    serverNodes.Add (p2pNodes.Get (i));
   }
+  ApplicationContainer serverApps = server.Install (serverNodes);
+  serverApps.Start (Seconds (1.0));
+  serverApps.Stop (Seconds (10.0));
 
   // Creamos las aplicaciones clientes UDP en los nodos clientes eligiendo el servidor de forma aleatoria.
   Time interPacketInterval = Seconds (0.025);
   uint32_t maxPacketCount = 10000;
+  UdpClientHelper client[numSwitches*usuariosXbus];
+  ApplicationContainer clientApps;
   for(uint32_t i=0; i<numSwitches; i++)
   {
     for(uint32_t j=0; j<usuariosXbus; j++)
     {
       int servidor = aleatorio(numServidores);
       Address serverAddress = Address (p2pInterfaces[servidor].GetAddress (1));
-      UdpClientHelper client (serverAddress, port);
-      client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
-      client.SetAttribute ("Interval", TimeValue (interPacketInterval));
-      client.SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
-      ApplicationContainer apps = client.Install (csmaUsuariosNodes[i].Get (j));
+      client[i*usuariosXbus+j].SetAttribute ("RemoteAddress", AddressValue (serverAddress));
+      client[i*usuariosXbus+j].SetAttribute ("RemotePort", UintegerValue (port));
+      client[i*usuariosXbus+j].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
+      client[i*usuariosXbus+j].SetAttribute ("Interval", TimeValue (interPacketInterval));
+      client[i*usuariosXbus+j].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
 
-      apps.Start (Seconds (2.0));
-      apps.Stop (Seconds (10.0));
+      clientApps.Add (client[i*usuariosXbus+j].Install (csmaUsuariosNodes[i].Get (j)));
     }
   }
+  clientApps.Start (Seconds (2.0));
+  clientApps.Stop (Seconds (10.0));
 
 
 
