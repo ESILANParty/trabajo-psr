@@ -1,4 +1,4 @@
-/* -*- 0Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
+/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
@@ -156,7 +156,7 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   //     utilizar el primer nodo como ruta por defecto.
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
-  // Creamos las aplicaciones serveridoras UDP en los nodos servidores
+  // Creamos las aplicaciones serveridoras UDP en los nodos servidores y en los nodos de los jugadores
   uint16_t port = 5000;
   UdpServerHelper server (port);
   NodeContainer serverNodes;
@@ -164,6 +164,15 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   {
     serverNodes.Add (p2pNodes.Get (i));
   }
+
+  for(uint32_t i=0; i<numSwitches; i++)
+  {
+    for(uint32_t j=0; j<usuariosXbus; j++)
+    {
+     serverNodes.Add (csmaUsuariosNodes[i].Get(j));
+    }
+  }
+
   ApplicationContainer serverApps = server.Install (serverNodes);
   serverApps.Start (Seconds (1.0));
   serverApps.Stop (Seconds (10.0));
@@ -173,6 +182,22 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   uint32_t maxPacketCount = 10000;
   UdpClientHelper client[numSwitches*usuariosXbus];
   ApplicationContainer clientApps;
+  UdpClientHelper serv[2];
+  Address servAddress = Address (csmaUsuariosInterfaces[1].GetAddress (1));
+  serv[1].SetAttribute ("RemoteAddress", AddressValue (servAddress));
+  serv[1].SetAttribute ("RemotePort", UintegerValue (port));
+  serv[1].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
+  serv[1].SetAttribute ("Interval", TimeValue (interPacketInterval));
+  serv[1].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
+  clientApps.Add (serv[1].Install (p2pNodes.Get (1)));
+  Address servAddress2 = Address (csmaUsuariosInterfaces[1].GetAddress (2));
+  serv[2].SetAttribute ("RemoteAddress", AddressValue (servAddress2));
+  serv[2].SetAttribute ("RemotePort", UintegerValue (port));
+  serv[2].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
+  serv[2].SetAttribute ("Interval", TimeValue (interPacketInterval));
+  serv[2].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
+  clientApps.Add (serv[2].Install (p2pNodes.Get (1)));
+
   for(uint32_t i=0; i<numSwitches; i++)
   {
     for(uint32_t j=0; j<usuariosXbus; j++)
