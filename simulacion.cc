@@ -214,9 +214,7 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
     {
       double servidor = 0;
       servidor = seleccionaServidor(numServidores, modoSeleccion, &servidor);
-      Address serverAddress = Address (p2pInterfaces[(int)servidor].GetAddress (1));
-      client[i*usuariosXbus+j].SetAttribute ("RemoteAddress", AddressValue (serverAddress));
-      client[i*usuariosXbus+j].SetAttribute ("RemotePort", UintegerValue (port));
+      client[i*usuariosXbus+j] = UdpClientHelper (p2pInterfaces[(int)servidor].GetAddress (1), port);
       client[i*usuariosXbus+j].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
       client[i*usuariosXbus+j].SetAttribute ("Interval", TimeValue (interPacketInterval));
       client[i*usuariosXbus+j].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
@@ -224,10 +222,7 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
 
       //Ya Conocemos el servidor elegido y el equipo que lo elige, instalamos el cliente en dicho servidor
       //poniendo como servAddress la dirección del equipo que lo ha elegido.
-
-      Address servAddress = Address (csmaUsuariosInterfaces[i].GetAddress (j));
-      serv[i*usuariosXbus+j].SetAttribute ("RemoteAddress", AddressValue (servAddress));
-      serv[i*usuariosXbus+j].SetAttribute ("RemotePort", UintegerValue (port));
+      serv[i*usuariosXbus+j] = UdpClientHelper (csmaUsuariosInterfaces[i].GetAddress (j), port);
       serv[i*usuariosXbus+j].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
       serv[i*usuariosXbus+j].SetAttribute ("Interval", TimeValue (interPacketInterval));
       serv[i*usuariosXbus+j].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
