@@ -89,7 +89,6 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   NodeContainer csmaUsuariosNodes [numSwitches];
   for (uint32_t i=0; i<numSwitches; i++)
   {
-    NS_LOG_INFO("ITERACIÓN Nº" << i);
     csmaUsuariosNodes[i].Add (csmaSwitchesNodes.Get (i));
     csmaUsuariosNodes[i].Create (usuariosXbus);
   }
@@ -156,7 +155,9 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
 
   NS_LOG_INFO("a los nodos CSMA encargados de hacer de gateways...");
   Ipv4InterfaceContainer csmaSwitchesInterfaces;
-  address.SetBase ("10.1.2.0", "255.255.255.0");
+  std::ostringstream network;
+  network << "10.1." << (numServidores+1) << ".0";
+  address.SetBase (network.str ().c_str (), "255.255.255.0");
   csmaSwitchesInterfaces = address.Assign (csmaSwitchesDevices);
 
   NS_LOG_INFO("y a los nodos CSMA de los equipos usuario...");
@@ -244,6 +245,7 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   pingApps.Start (Seconds (2.0));
   pingApps.Stop (Seconds (10.0));
 
+  NS_LOG_INFO("Habilitando pcap del equipo usuario nº1 del bus csma 1...");
   csmaUsuarios[1].EnablePcap ("trabajo-psr", csmaUsuariosDevices[1].Get (1), true);
 
 
