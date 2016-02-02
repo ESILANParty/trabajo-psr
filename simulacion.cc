@@ -12,14 +12,16 @@
 #include "Observador.h"
 
 using namespace ns3;
+#define ALEATORIO 0
+#define SECUENCIAL 1
 
 NS_LOG_COMPONENT_DEFINE ("fuentes12");
 
 Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqueteIn,
   uint32_t tamPaqueteOut, uint32_t usuariosXbus, uint32_t numSwitches,
-  uint32_t numServidores, double retardo);
+  uint32_t numServidores, double retardo, double modoSeleccion);
 
-int aleatorio(uint32_t numServidores);
+int seleccionaServidor(uint32_t numServidores, uint16_t modoSeleccion, double * servidor);
 
 int
 main (int argc, char *argv[])
@@ -37,6 +39,7 @@ main (int argc, char *argv[])
   uint32_t numSwitches = 15;
   uint32_t numServidores = 10;
   double retardo = 2;
+  uint16_t modoSeleccion = 0;
 
   // Parametros por linea de comandos
   CommandLine cmd;
@@ -48,6 +51,7 @@ main (int argc, char *argv[])
   cmd.AddValue ("numSwitches", "Numero de switches", numSwitches);
   cmd.AddValue ("numServidores", "Numero de servidores", numServidores);
   cmd.AddValue ("retardo", "Retardo de envio", retardo);
+  cmd.AddValue ("modoSelección", "Modo de selección del servidor", modoSeleccion);
   cmd.Parse (argc,argv);
 
   return 0;
@@ -55,7 +59,7 @@ main (int argc, char *argv[])
 
 Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqueteIn,
   uint32_t tamPaqueteOut, uint32_t usuariosXbus, uint32_t numSwitches,
-  uint32_t numServidores, double retardo)
+  uint32_t numServidores, double retardo, uint16_t modoSeleccion)
 {
   // Variables aleatorias del sistema
   Ptr<NormalRandomVariable> tasaIn = CreateObject<NormalRandomVariable> ();
@@ -184,20 +188,13 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   ApplicationContainer clientApps;
   UdpClientHelper serv[numSwitches*usuariosXbus];
   
-  Address servAddress2 = Address (csmaUsuariosInterfaces[1].GetAddress (2));
-  serv[2].SetAttribute ("RemoteAddress", AddressValue (servAddress2));
-  serv[2].SetAttribute ("RemotePort", UintegerValue (port));
-  serv[2].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
-  serv[2].SetAttribute ("Interval", TimeValue (interPacketInterval));
-  serv[2].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
-  clientApps.Add (serv[2].Install (p2pNodes.Get (1)));
-
   for(uint32_t i=0; i<numSwitches; i++)
   {
     for(uint32_t j=0; j<usuariosXbus; j++)
     {
-      int servidor = aleatorio(numServidores);
-      Address serverAddress = Address (p2pInterfaces[servidor].GetAddress (1));
+      double servidor = 0;
+      servidor = seleccionaServidor(numServidores, modoSeleccion, &servidor);
+      Address serverAddress = Address (p2pInterfaces[(int)servidor].GetAddress (1));
       client[i*usuariosXbus+j].SetAttribute ("RemoteAddress", AddressValue (serverAddress));
       client[i*usuariosXbus+j].SetAttribute ("RemotePort", UintegerValue (port));
       client[i*usuariosXbus+j].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
@@ -231,15 +228,25 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
 }
 
 //Función que devuelve un número aleatorio que será el servidor asignado.
-int aleatorio(uint32_t numServidores)
+int seleccionaServidor(uint32_t numServidores, uint16_t modoSeleccion, double * servidor)
 {
-  double min = 0.0;
-  double max = numServidores;                                               //el máximo está fuera del intervalo que devuelve por eso sumamos 1.
-  Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable> ();
-  x->SetAttribute ("Min", DoubleValue (min));
-  x->SetAttribute ("Max", DoubleValue (max));
+  
+  if(modoSeleccion == ALEATORIO)
+  {
+    double min = 0.0;
+    double max = numServidores; 
+    Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable> ();           //el máximo está fuera del intervalo que devuelve.
+    x->SetAttribute ("Min", DoubleValue (min));
+    x->SetAttribute ("Max", DoubleValue (max));
+    *servidor = x->GetValue ();
+   }
+   else
+   {
+    if(*servidor == numServidores-1 || *servidor == 0)
+      *servidor=0;
+    else
+      *servidor= (*servidor)+1;
+   }
 
-  double value = x->GetValue ();
-
-  return (int) value;
+  return (int) *servidor;
 }
