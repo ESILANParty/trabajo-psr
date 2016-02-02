@@ -19,7 +19,7 @@ NS_LOG_COMPONENT_DEFINE ("fuentes12");
 
 Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqueteIn,
   uint32_t tamPaqueteOut, uint32_t usuariosXbus, uint32_t numSwitches,
-  uint32_t numServidores, double retardo, double modoSeleccion);
+  uint32_t numServidores, double retardo, uint16_t modoSeleccion);
 
 int seleccionaServidor(uint32_t numServidores, uint16_t modoSeleccion, double * servidor);
 
@@ -53,6 +53,9 @@ main (int argc, char *argv[])
   cmd.AddValue ("retardo", "Retardo de envio", retardo);
   cmd.AddValue ("modoSelección", "Modo de selección del servidor", modoSeleccion);
   cmd.Parse (argc,argv);
+
+  simulacion (tasaMediaIn, tasaMediaOut, tamPaqueteIn, tamPaqueteOut, usuariosXbus,
+    numSwitches, numServidores, retardo, modoSeleccion);
 
   return 0;
 }
@@ -216,7 +219,9 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
 
       // E instalamos las aplicaciones de ping en el cliente
       V4PingHelper ping = V4PingHelper (p2pInterfaces[(int)servidor].GetAddress (1));
-      pingApps.Add (ping.Install (csmaUsuariosInterfaces[i].GetAddress (j)));
+      NodeContainer pingers;
+      pingers.Add (csmaUsuariosNodes[i].Get (j));
+      pingApps.Add (ping.Install (pingers));
     }
   }
   clientApps.Start (Seconds (2.0));
@@ -224,6 +229,7 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   pingApps.Start (Seconds (2.0));
   pingApps.Stop (Seconds (10.0));
 
+  csmaUsuarios[1].EnablePcap ("trabajo-psr", csmaUsuariosDevices[1].Get (1), true);
 
 
   // Lanzamos la simulación
