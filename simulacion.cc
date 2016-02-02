@@ -187,7 +187,8 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   UdpClientHelper client[numSwitches*usuariosXbus];
   ApplicationContainer clientApps;
   UdpClientHelper serv[numSwitches*usuariosXbus];
-  
+  ApplicationContainer pingApps;
+
   for(uint32_t i=0; i<numSwitches; i++)
   {
     for(uint32_t j=0; j<usuariosXbus; j++)
@@ -203,7 +204,7 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
       clientApps.Add (client[i*usuariosXbus+j].Install (csmaUsuariosNodes[i].Get (j)));
 
       //Ya Conocemos el servidor elegido y el equipo que lo elige, instalamos el cliente en dicho servidor
-      //poniendo como servAddress la dirección del equipo que lo ha elegido. 
+      //poniendo como servAddress la dirección del equipo que lo ha elegido.
 
       Address servAddress = Address (csmaUsuariosInterfaces[i].GetAddress (j));
       serv[i*usuariosXbus+j].SetAttribute ("RemoteAddress", AddressValue (servAddress));
@@ -212,11 +213,16 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
       serv[i*usuariosXbus+j].SetAttribute ("Interval", TimeValue (interPacketInterval));
       serv[i*usuariosXbus+j].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
       clientApps.Add (serv[i*usuariosXbus+j].Install (p2pNodes.Get (servidor)));
+
+      // E instalamos las aplicaciones de ping en el cliente
+      V4PingHelper ping = V4PingHelper (p2pInterfaces[(int)servidor].GetAddress (1));
+      pingApps.Add (ping.Install (csmaUsuariosInterfaces[i].GetAddress (j)));
     }
   }
   clientApps.Start (Seconds (2.0));
   clientApps.Stop (Seconds (10.0));
-
+  pingApps.Start (Seconds (2.0));
+  pingApps.Stop (Seconds (10.0));
 
 
 
@@ -230,11 +236,11 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
 //Función que devuelve un número aleatorio que será el servidor asignado.
 int seleccionaServidor(uint32_t numServidores, uint16_t modoSeleccion, double * servidor)
 {
-  
+
   if(modoSeleccion == ALEATORIO)
   {
     double min = 0.0;
-    double max = numServidores; 
+    double max = numServidores;
     Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable> ();           //el máximo está fuera del intervalo que devuelve.
     x->SetAttribute ("Min", DoubleValue (min));
     x->SetAttribute ("Max", DoubleValue (max));
