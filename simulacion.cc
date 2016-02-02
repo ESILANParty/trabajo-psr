@@ -177,19 +177,13 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   serverApps.Start (Seconds (1.0));
   serverApps.Stop (Seconds (10.0));
 
-  // Creamos las aplicaciones clientes UDP en los nodos clientes eligiendo el servidor de forma aleatoria.
-  Time interPacketInterval = Seconds (0.025);
+  // Creamos las aplicaciones clientes UDP en los nodos clientes eligiendo el servidor de forma aleatoria...
+  Time interPacketInterval = Seconds (0.025);   //... y las aplicaciones clientes en los servidores que han sido elegidos
   uint32_t maxPacketCount = 10000;
   UdpClientHelper client[numSwitches*usuariosXbus];
   ApplicationContainer clientApps;
-  UdpClientHelper serv[2];
-  Address servAddress = Address (csmaUsuariosInterfaces[1].GetAddress (1));
-  serv[1].SetAttribute ("RemoteAddress", AddressValue (servAddress));
-  serv[1].SetAttribute ("RemotePort", UintegerValue (port));
-  serv[1].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
-  serv[1].SetAttribute ("Interval", TimeValue (interPacketInterval));
-  serv[1].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
-  clientApps.Add (serv[1].Install (p2pNodes.Get (1)));
+  UdpClientHelper serv[numSwitches*usuariosXbus];
+  
   Address servAddress2 = Address (csmaUsuariosInterfaces[1].GetAddress (2));
   serv[2].SetAttribute ("RemoteAddress", AddressValue (servAddress2));
   serv[2].SetAttribute ("RemotePort", UintegerValue (port));
@@ -209,8 +203,18 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
       client[i*usuariosXbus+j].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
       client[i*usuariosXbus+j].SetAttribute ("Interval", TimeValue (interPacketInterval));
       client[i*usuariosXbus+j].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
-
       clientApps.Add (client[i*usuariosXbus+j].Install (csmaUsuariosNodes[i].Get (j)));
+
+      //Ya Conocemos el servidor elegido y el equipo que lo elige, instalamos el cliente en dicho servidor
+      //poniendo como servAddress la dirección del equipo que lo ha elegido. 
+
+      Address servAddress = Address (csmaUsuariosInterfaces[i].GetAddress (j));
+      serv[i*usuariosXbus+j].SetAttribute ("RemoteAddress", AddressValue (servAddress));
+      serv[i*usuariosXbus+j].SetAttribute ("RemotePort", UintegerValue (port));
+      serv[i*usuariosXbus+j].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
+      serv[i*usuariosXbus+j].SetAttribute ("Interval", TimeValue (interPacketInterval));
+      serv[i*usuariosXbus+j].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
+      clientApps.Add (serv[i*usuariosXbus+j].Install (p2pNodes.Get (servidor)));
     }
   }
   clientApps.Start (Seconds (2.0));
