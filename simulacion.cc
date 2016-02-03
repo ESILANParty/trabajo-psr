@@ -258,24 +258,47 @@ Observador simulacion (double intervaloMedioUsuario, double intervaloMedioServid
     p2pServInterfaces[i] = address.Assign (p2pServDevices[i]);
   }
 
+  
   NS_LOG_INFO("a los nodos CSMA encargados de hacer de gateways...");
   Ipv4InterfaceContainer p2pRoutersInterfaces;
+  uint32_t itotal=numServidores+1;
+  uint32_t subred =1;
   for(uint32_t i=0; i<numRouters; i++)
   {
+  	if(itotal<250){
+    	itotal= itotal+1;
+    }else{
+    	itotal=1;
+    	subred= subred+1;
+    }
     std::ostringstream network;
-    network << "10.1." << (numServidores+1+i) << ".0";
+    network << "10."<< subred <<"." << itotal << ".0";
     address.SetBase (network.str ().c_str (), "255.255.255.0");
     p2pRoutersInterfaces = address.Assign (p2pRoutersDevices[i]);
   }
 
   NS_LOG_INFO("y a los nodos CSMA de los equipos usuario...");
   Ipv4InterfaceContainer p2pUsuariosInterfaces [numRouters];
+  //uint32_t itotal=numRouters+numServidores+1;
+  //uint32_t subred =1;
   for(uint32_t i=0; i<numRouters; i++)
   {
+    for(uint32_t j=0; j<usuariosXbus; j++)
+    {
+
+    }
+    if(itotal<250){
+    	itotal= itotal+1;
+    }else{
+    	itotal=1;
+    	subred= subred+1;
+    }
     std::ostringstream network;
-    network << "10.1." << ((i+1) + (numRouters+numServidores+1)) << ".0";
+    network << "10."<< subred <<"." << (itotal) << ".0";
     address.SetBase (network.str ().c_str (), "255.255.255.0");
     p2pUsuariosInterfaces[i] = address.Assign (p2pUsuariosDevices[i]);
+  	
+
   }
 
   // Calculamos las rutas del escenario. Con este comando, los
