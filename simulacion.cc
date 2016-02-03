@@ -14,6 +14,10 @@
 using namespace ns3;
 #define ALEATORIO 0
 #define SECUENCIAL 1
+#define CURVAS 5
+#define VALORES_USUARIOS 10
+#define PASO_USUARIOS 50
+#define REPETICIONES 13
 
 NS_LOG_COMPONENT_DEFINE ("fuentes12");
 
@@ -37,7 +41,7 @@ main (int argc, char *argv[])
   uint32_t tamPaqueteOut = 71;
   uint32_t usuariosXbus = 1;
   uint32_t numRouters = 100;
-  uint32_t numServidores = 10;
+  uint32_t numServidores = 1;
   double retardo = 2;
   uint16_t modoSeleccion = SECUENCIAL;
 
@@ -54,10 +58,83 @@ main (int argc, char *argv[])
   cmd.AddValue ("modoSelección", "Modo de selección del servidor", modoSeleccion);
   cmd.Parse (argc,argv);
 
-  Observador observador = simulacion (intervaloMedioUsuario, intervaloMedioServidor, tamPaqueteIn,
-    tamPaqueteOut, usuariosXbus, numRouters, numServidores, retardo, modoSeleccion);
+  // Objetos necesarios para las graficas
+  Gnuplot plotPqtsCorrectos;
+  Gnuplot plotLatencia;
+  Gnuplot2dDataset datosPqts[CURVAS];
+  Gnuplot2dDataset datosLatencia[CURVAS];
+  double ts13n95p = 2.1788; // n = 13, 95% -> (12, 0.025)
+  double z_PqtsCorrectos;
+  Average<double> avgPorcentajesPqtsCorrectos;
+  Average<double> avgLatenciasMedias;
 
-  NS_LOG_INFO("Porcentaje de paquetes correctos: " << observador.PorcentajeCorrectos ());
+  // Valores precargados para las simulaciones
+  std::ostringstream titulo;
+  titulo << "Simulacion con nCsma = " ;
+  plotPqtsCorrectos.SetTitle (titulo.str ());
+  plotPqtsCorrectos.SetLegend ("Números de usuarios", "Paquetes correctos");
+  plotLatencia.SetTitle (titulo.str ());
+  plotLatencia.SetLegend ("Números de usuarios",
+  "Latencia (ms)");
+
+  // Bucle para los distintos valores de servidores
+	for(int i=0; i<CURVAS; i++)
+	{
+    // Configuracion de las curvas i de cada numero de servidores
+    std::ostringstream rotulo;
+    rotulo << "nº de servidores: " << (i + 1);
+    datosPqts[i] = Gnuplot2dDataset (rotulo.str ());
+    datosPqts[i].SetStyle(Gnuplot2dDataset::LINES_POINTS);
+	  datosPqts[i].SetErrorBars(Gnuplot2dDataset::Y);
+    datosLatencia[i] = Gnuplot2dDataset (rotulo.str ());
+    datosLatencia[i].SetStyle(Gnuplot2dDataset::LINES_POINTS);
+    //datosLatencia[i].SetErrorBars(GnuplotLatenciadDataset::Y);
+
+    // Bucle para los distintos tiempos medios del estado On de las fuentes
+    for(int n=0; n<VALORES_USUARIOS; n++)
+    {
+      NS_LOG_INFO ("Simulando con nº de usuarios: " << (n*PASO_USUARIOS+PASO_USUARIOS));
+      // Bucle de simulaciones con los mismos parametros
+      for(int k=0; k<REPETICIONES; k++)
+      {
+        // Hacemos una simulacion simple
+        Observador observador = simulacion (intervaloMedioUsuario, intervaloMedioServidor, tamPaqueteIn,
+          tamPaqueteOut, usuariosXbus, (n*PASO_USUARIOS+PASO_USUARIOS), (i+1), retardo, modoSeleccion);
+
+        avgPorcentajesPqtsCorrectos.Update (observador.PorcentajeCorrectos ());
+        avgLatenciasMedias.Update (observador.TiempoDesdeClientMedio ()
+        + observador.TiempoDesdeServMedio ());
+      }
+
+      // Calculamos el intervalo de confianza del 95%
+      z_PqtsCorrectos = ts13n95p*sqrt(avgPorcentajesPqtsCorrectos.Var () / REPETICIONES);
+      NS_LOG_INFO ("IC95% de % paquetes correctos: ("
+                    << avgPorcentajesPqtsCorrectos.Avg()-z_PqtsCorrectos << ", "
+                    << avgPorcentajesPqtsCorrectos.Avg()+z_PqtsCorrectos << ")");
+
+      // y aÃ±adimos los datos
+      datosPqts[i].Add(n*PASO_USUARIOS+PASO_USUARIOS, avgPorcentajesPqtsCorrectos.Avg(), z_PqtsCorrectos);
+      datosLatencia[i].Add(n*PASO_USUARIOS+PASO_USUARIOS, avgLatenciasMedias.Avg());
+
+      // y reseteamos los acumuladores
+      avgPorcentajesPqtsCorrectos.Reset ();
+      avgLatenciasMedias.Reset ();
+    }
+
+    // AÃ±adimos los datos a las graficas
+    plotPqtsCorrectos.AddDataset(datosPqts[i]);
+  	plotLatencia.AddDataset(datosLatencia[i]);
+  }
+
+  // Guardamos las graficas en los ficheros pedidos
+  std::ofstream fichero1("paquetesCorrectos.plt");
+  plotPqtsCorrectos.GenerateOutput(fichero1);
+  fichero1 << "pause -1" << std::endl;
+  fichero1.close();
+  std::ofstream fichero2("latencia.plt");
+  plotLatencia.GenerateOutput(fichero2);
+  fichero2 << "pause -1" << std::endl;
+  fichero2.close();
 
   return 0;
 }
@@ -195,10 +272,6 @@ Observador simulacion (double intervaloMedioUsuario, double intervaloMedioServid
   Ipv4InterfaceContainer p2pUsuariosInterfaces [numRouters];
   for(uint32_t i=0; i<numRouters; i++)
   {
-    for(uint32_t j=0; j<usuariosXbus; j++)
-    {
-
-    }
     std::ostringstream network;
     network << "10.1." << ((i+1) + (numRouters+numServidores+1)) << ".0";
     address.SetBase (network.str ().c_str (), "255.255.255.0");
@@ -231,7 +304,7 @@ Observador simulacion (double intervaloMedioUsuario, double intervaloMedioServid
   }
   ApplicationContainer serverApps = server.Install (serverNodes);
   serverApps.Start (Seconds (1.0));
-  serverApps.Stop (Seconds (10.0));
+  serverApps.Stop (Seconds (3.0));
 
   // Creamos las aplicaciones clientes UDP en los nodos clientes eligiendo el servidor de forma aleatoria...
   NS_LOG_INFO("Creando las aplicaciones cliente UDP y de ping");
@@ -264,7 +337,7 @@ Observador simulacion (double intervaloMedioUsuario, double intervaloMedioServid
     }
   }
   clientApps.Start (Seconds (2.0));
-  clientApps.Stop (Seconds (10.0));
+  clientApps.Stop (Seconds (3.0));
 
   NS_LOG_INFO("Habilitando pcap del equipo usuario nº1 del bus csma 1...");
   pointToPointUsuarios[0].EnablePcap ("trabajo-psr", p2pUsuariosDevices[0].Get (1), true);
