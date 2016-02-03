@@ -34,7 +34,7 @@ Observador::MacRxClient (Ptr<const Packet> packet)
   std::map<uint64_t, Time>::iterator it = m_tiempoDesdeServ.find (packet->GetUid ());
   if(it != m_tiempoDesdeServ.end ())
   {
-    // Guardamos el tiempo de llegada al nodo 0 del enlace punto a punto
+    // Guardamos el tiempo de llegada
     NS_LOG_INFO ("Tiempo de Tx (ms) = " << it->second.GetNanoSeconds () / 1000000);
     m_avgTiemposDesdeServ.Update ((Simulator::Now ().GetNanoSeconds () - it->second.GetNanoSeconds ()) / 1000000);
     NS_LOG_INFO ("Paquete con UID " << packet->GetUid () << " ha completado la Tx en "
@@ -65,7 +65,7 @@ Observador::MacRxServ (Ptr<const Packet> packet)
   std::map<uint64_t, Time>::iterator it = m_tiempoDesdeClient.find (packet->GetUid ());
   if(it != m_tiempoDesdeClient.end ())
   {
-    // Guardamos el tiempo de llegada al nodo 0 del enlace punto a punto
+    // Guardamos el tiempo de llegada
     NS_LOG_INFO ("Tiempo de Tx (ms) = " << it->second.GetNanoSeconds () / 1000000);
     m_avgTiemposDesdeClient.Update ((Simulator::Now ().GetNanoSeconds () - it->second.GetNanoSeconds ()) / 1000000);
     NS_LOG_INFO ("Paquete con UID " << packet->GetUid () << " ha completado la Tx en "
