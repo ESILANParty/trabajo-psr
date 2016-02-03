@@ -2,7 +2,6 @@
 
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
-#include "ns3/csma-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
@@ -30,22 +29,22 @@ main (int argc, char *argv[])
   GlobalValue::Bind("ChecksumEnabled", BooleanValue(true));
   Time::SetResolution (Time::NS);
 
-  // Tasas en KB/s
-  double tasaMediaIn = 5.36;
-  double tasaMediaOut = 7.13;
+  // Intervalos de tiempo en segundos
+  double intervaloMedioUsuario = 0.01;
+  double intervaloMedioServidor = 0.005;
   // Paquetes en Bytes
   uint32_t tamPaqueteIn = 136;
   uint32_t tamPaqueteOut = 71;
-  uint32_t usuariosXbus = 7;
-  uint32_t numRouters = 7;
-  uint32_t numServidores = 3;
+  uint32_t usuariosXbus = 1;
+  uint32_t numRouters = 100;
+  uint32_t numServidores = 10;
   double retardo = 2;
-  uint16_t modoSeleccion = 0;
+  uint16_t modoSeleccion = SECUENCIAL;
 
   // Parametros por linea de comandos
   CommandLine cmd;
-  cmd.AddValue ("tasaMediaIn", "Tasa media de entrada en los equipos", tasaMediaIn);
-  cmd.AddValue ("tasaMediaOut", "Tasa media de salida en los equipos", tasaMediaOut);
+  cmd.AddValue ("intervaloMedioUsuario", "Tasa media de entrada en los equipos", intervaloMedioUsuario);
+  cmd.AddValue ("intervaloMedioServidor", "Tasa media de salida en los equipos", intervaloMedioServidor);
   cmd.AddValue ("tamPaqueteIn", "Tamaño de paquetes de entrada", tamPaqueteIn);
   cmd.AddValue ("tamPaqueteOut", "Tamaño de paquetes de salida", tamPaqueteOut);
   cmd.AddValue ("usuariosXbus", "Equipos de jugadores por cada bus CSMA", usuariosXbus);
@@ -55,74 +54,102 @@ main (int argc, char *argv[])
   cmd.AddValue ("modoSelección", "Modo de selección del servidor", modoSeleccion);
   cmd.Parse (argc,argv);
 
-  simulacion (tasaMediaIn, tasaMediaOut, tamPaqueteIn, tamPaqueteOut, usuariosXbus,
-    numRouters, numServidores, retardo, modoSeleccion);
+  Observador observador = simulacion (intervaloMedioUsuario, intervaloMedioServidor, tamPaqueteIn,
+    tamPaqueteOut, usuariosXbus, numRouters, numServidores, retardo, modoSeleccion);
+
+  NS_LOG_INFO("Porcentaje de paquetes correctos: " << observador.PorcentajeCorrectos ());
 
   return 0;
 }
 
-Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqueteIn,
+Observador simulacion (double intervaloMedioUsuario, double intervaloMedioServidor, uint32_t tamPaqueteIn,
   uint32_t tamPaqueteOut, uint32_t usuariosXbus, uint32_t numRouters,
   uint32_t numServidores, double retardo, uint16_t modoSeleccion)
 {
   // Variables aleatorias del sistema
-  Ptr<NormalRandomVariable> tasaIn = CreateObject<NormalRandomVariable> ();
-  Ptr<NormalRandomVariable> tasaOut = CreateObject<NormalRandomVariable> ();
-  tasaIn->SetAttribute ("Mean", DoubleValue(tasaMediaIn));
-  tasaOut->SetAttribute ("Mean", DoubleValue(tasaMediaOut));
+  Ptr<NormalRandomVariable> IntervaloUsuario = CreateObject<NormalRandomVariable> ();
+  Ptr<NormalRandomVariable> IntervaloServidor = CreateObject<NormalRandomVariable> ();
+  IntervaloUsuario->SetAttribute ("Mean", DoubleValue(intervaloMedioUsuario));
+  IntervaloServidor->SetAttribute ("Mean", DoubleValue(intervaloMedioServidor));
+
 
   // Variable para calcular los estadisticos
   Observador observador;
 
   // Creacion de los nodos p2p (servidores y gateway)
-  NS_LOG_INFO("Creando los nodos p2p...");
-  NodeContainer p2pNodes;
-  p2pNodes.Create (numServidores+1);
+  NS_LOG_INFO("Creando los nodos p2p de los servidores...");
+  NodeContainer p2pServNodes;
+  p2pServNodes.Create (numServidores+1);
 
-  // Creacion de bus CSMA de routers
+  // Creacion de los nodos p2p de todos los routers
   NS_LOG_INFO("Creando los buses CMSA de gateways...");
-  NodeContainer csmaRoutersNodes;
-  csmaRoutersNodes.Add (p2pNodes.Get (0));
-  csmaRoutersNodes.Create (numRouters);
+  NodeContainer p2pRoutersNodes;
+  p2pRoutersNodes.Add (p2pServNodes.Get (0));
+  p2pRoutersNodes.Create (numRouters);
 
   // Creacion de bus CSMA en cada router con n equipos
   NS_LOG_INFO("Creando los buses CSMA de los equipos usuarios...");
-  NodeContainer csmaUsuariosNodes [numRouters];
+  NodeContainer p2pUsuariosNodes [numRouters];
   for (uint32_t i=0; i<numRouters; i++)
   {
-    csmaUsuariosNodes[i].Add (csmaRoutersNodes.Get (i+1));
-    csmaUsuariosNodes[i].Create (usuariosXbus);
+    p2pUsuariosNodes[i].Add (p2pRoutersNodes.Get (i+1));
+    p2pUsuariosNodes[i].Create (usuariosXbus);
   }
 
   // Instalacion de los servidores a los P2P con el router
   // El nodo 0 es el router y el resto los servidores conectados a el
   NS_LOG_INFO("Instalando las conexiones p2p...");
-  PointToPointHelper pointToPoint [numServidores];
-  NetDeviceContainer p2pDevices [numServidores];
+  PointToPointHelper pointToPointServ [numServidores];
+  NetDeviceContainer p2pServDevices [numServidores];
   for(uint32_t i=0; i<numServidores; i++)
   {
-    pointToPoint[i].SetDeviceAttribute ("DataRate", StringValue ("100Gbps"));
-    pointToPoint[i].SetChannelAttribute ("Delay", StringValue ("1ms"));
-    p2pDevices[i] = pointToPoint[i].Install (p2pNodes.Get (0), p2pNodes.Get (i+1));
+    pointToPointServ[i].SetDeviceAttribute ("DataRate", StringValue ("10Gbps"));
+    pointToPointServ[i].SetChannelAttribute ("Delay", StringValue ("1ms"));
+    p2pServDevices[i] = pointToPointServ[i].Install (p2pServNodes.Get (0), p2pServNodes.Get (i+1));
   }
 
   // Instalacion del bus CSMA de routers
   NS_LOG_INFO("Instalando las conexiones del bus CSMA de los gateways...");
-  CsmaHelper csmaRouters;
-  NetDeviceContainer csmaRoutersDevices;
-  csmaRouters.SetChannelAttribute ("DataRate", StringValue ("100Gbps"));
-  csmaRouters.SetChannelAttribute ("Delay", StringValue ("1ms"));
-  csmaRoutersDevices = csmaRouters.Install (csmaRoutersNodes);
+  PointToPointHelper pointToPointRouters [numRouters];
+  NetDeviceContainer p2pRoutersDevices [numRouters];
+  for(uint32_t i=0; i<numRouters; i++)
+  {
+    pointToPointRouters[i].SetDeviceAttribute ("DataRate", StringValue ("10Gbps"));
+    pointToPointRouters[i].SetChannelAttribute ("Delay", StringValue ("1ms"));
+    p2pRoutersDevices[i] = pointToPointRouters[i].Install (p2pRoutersNodes.Get (0), p2pRoutersNodes.Get (i+1));
+  }
 
   // Instalacion de los buses CSMA de los usuarios conectados a cada router
   NS_LOG_INFO("Instalando las conexiones de los buses CSMA de los equipos usuario con su respectivo gateway...");
-  CsmaHelper csmaUsuarios [numRouters];
-  NetDeviceContainer csmaUsuariosDevices [numRouters];
+  PointToPointHelper pointToPointUsuarios [numRouters*usuariosXbus];
+  NetDeviceContainer p2pUsuariosDevices [numRouters];
   for(uint32_t i=0; i<numRouters; i++)
   {
-    csmaUsuarios[i].SetChannelAttribute ("DataRate", StringValue ("100Gbps"));
-    csmaUsuarios[i].SetChannelAttribute ("Delay", StringValue ("2ms"));
-    csmaUsuariosDevices[i] = csmaUsuarios[i].Install (csmaUsuariosNodes[i]);
+    for(uint32_t j=0; j<usuariosXbus; j++)
+    {
+      pointToPointUsuarios[i].SetDeviceAttribute ("DataRate", StringValue ("10Gbps"));
+      pointToPointUsuarios[i].SetChannelAttribute ("Delay", StringValue ("1ms"));
+      p2pUsuariosDevices[i].Add (pointToPointUsuarios[i*usuariosXbus+j].Install (p2pUsuariosNodes[i].Get (0), p2pUsuariosNodes[i].Get (j+1)));
+    }
+  }
+  //Capturador de envío y recepción de los equipos usuarios
+  for(uint32_t i=0; i<numRouters; i++)
+  {
+    for(uint32_t j=0; j<usuariosXbus; j++)
+    {
+      p2pUsuariosDevices[i].Get (j+1)->GetObject<PointToPointNetDevice> ()
+      ->TraceConnectWithoutContext ("MacTx", MakeCallback(&Observador::MacTxClient, &observador));
+      p2pUsuariosDevices[i].Get (j+1)->GetObject<PointToPointNetDevice> ()
+      ->TraceConnectWithoutContext ("MacRx", MakeCallback(&Observador::MacRxClient, &observador));
+    }
+  }
+  // Capturador de envío y recepción de los servidores
+  for(uint32_t i=0; i<numServidores; i++)
+  {
+      p2pServDevices[i].Get (1)->GetObject<PointToPointNetDevice> ()
+      ->TraceConnectWithoutContext ("MacTx", MakeCallback(&Observador::MacTxServ, &observador));
+      p2pServDevices[i].Get (1)->GetObject<PointToPointNetDevice> ()
+      ->TraceConnectWithoutContext ("MacRx", MakeCallback(&Observador::MacRxServ, &observador));
   }
 
   // Instalamos la pila TCP/IP en todos los nodos
@@ -130,14 +157,14 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   InternetStackHelper stack;
   for(uint32_t i=1; i<=numServidores; i++)
   {
-    stack.Install (p2pNodes.Get (i));
+    stack.Install (p2pServNodes.Get (i));
   }
-  stack.Install (csmaRoutersNodes);
+  stack.Install (p2pRoutersNodes);
   for(uint32_t i=0; i<numRouters; i++)
   {
     for(uint32_t j=1; j<=usuariosXbus; j++)
     {
-      stack.Install (csmaUsuariosNodes[i].Get (j));
+      stack.Install (p2pUsuariosNodes[i].Get (j));
     }
   }
 
@@ -145,30 +172,37 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
   NS_LOG_INFO("Asignando direcciones IP,");
   NS_LOG_INFO("a los nodos p2p...");
   Ipv4AddressHelper address;
-  Ipv4InterfaceContainer p2pInterfaces [numServidores];
+  Ipv4InterfaceContainer p2pServInterfaces [numServidores];
   for(uint32_t i=0; i<numServidores; i++)
   {
     std::ostringstream network;
     network << "10.1." << (i+1) << ".0";
     address.SetBase (network.str ().c_str (), "255.255.255.0");
-    p2pInterfaces[i] = address.Assign (p2pDevices[i]);
+    p2pServInterfaces[i] = address.Assign (p2pServDevices[i]);
   }
 
   NS_LOG_INFO("a los nodos CSMA encargados de hacer de gateways...");
-  Ipv4InterfaceContainer csmaRoutersInterfaces;
-  std::ostringstream network;
-  network << "10.1." << (numServidores+1) << ".0";
-  address.SetBase (network.str ().c_str (), "255.255.255.0");
-  csmaRoutersInterfaces = address.Assign (csmaRoutersDevices);
-
-  NS_LOG_INFO("y a los nodos CSMA de los equipos usuario...");
-  Ipv4InterfaceContainer csmaUsuariosInterfaces [numRouters];
+  Ipv4InterfaceContainer p2pRoutersInterfaces;
   for(uint32_t i=0; i<numRouters; i++)
   {
     std::ostringstream network;
-    network << "10.1." << ((i+1) + (numServidores+1)) << ".0";
+    network << "10.1." << (numServidores+1+i) << ".0";
     address.SetBase (network.str ().c_str (), "255.255.255.0");
-    csmaUsuariosInterfaces[i] = address.Assign (csmaUsuariosDevices[i]);
+    p2pRoutersInterfaces = address.Assign (p2pRoutersDevices[i]);
+  }
+
+  NS_LOG_INFO("y a los nodos CSMA de los equipos usuario...");
+  Ipv4InterfaceContainer p2pUsuariosInterfaces [numRouters];
+  for(uint32_t i=0; i<numRouters; i++)
+  {
+    for(uint32_t j=0; j<usuariosXbus; j++)
+    {
+
+    }
+    std::ostringstream network;
+    network << "10.1." << ((i+1) + (numRouters+numServidores+1)) << ".0";
+    address.SetBase (network.str ().c_str (), "255.255.255.0");
+    p2pUsuariosInterfaces[i] = address.Assign (p2pUsuariosDevices[i]);
   }
 
   // Calculamos las rutas del escenario. Con este comando, los
@@ -180,19 +214,19 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
 
   // Creamos las aplicaciones serveridoras UDP en los nodos servidores y en los nodos de los jugadores
   NS_LOG_INFO("Creando las aplicaciones servidor UDP");
-  uint16_t port = 5000;
+  uint16_t port = 6000;
   UdpServerHelper server (port);
   NodeContainer serverNodes;
   for(uint32_t i=1; i<=numServidores; i++)
   {
-    serverNodes.Add (p2pNodes.Get (i));
+    serverNodes.Add (p2pServNodes.Get (i));
   }
 
   for(uint32_t i=0; i<numRouters; i++)
   {
     for(uint32_t j=1; j<=usuariosXbus; j++)
     {
-     serverNodes.Add (csmaUsuariosNodes[i].Get(j));
+     serverNodes.Add (p2pUsuariosNodes[i].Get (j));
     }
   }
   ApplicationContainer serverApps = server.Install (serverNodes);
@@ -214,37 +248,27 @@ Observador simulacion (double tasaMediaIn, double tasaMediaOut, uint32_t tamPaqu
     {
       double servidor = 0;
       servidor = seleccionaServidor(numServidores, modoSeleccion, &servidor);
-      client[i*usuariosXbus+j] = UdpClientHelper (p2pInterfaces[(int)servidor].GetAddress (1), port);
+      client[i*usuariosXbus+j] = UdpClientHelper (p2pServInterfaces[(int)servidor].GetAddress (1), port);
       client[i*usuariosXbus+j].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
       client[i*usuariosXbus+j].SetAttribute ("Interval", TimeValue (interPacketInterval));
       client[i*usuariosXbus+j].SetAttribute ("PacketSize", UintegerValue (tamPaqueteOut));
-      clientApps.Add (client[i*usuariosXbus+j].Install (csmaUsuariosNodes[i].Get (j+1)));
+      clientApps.Add (client[i*usuariosXbus+j].Install (p2pUsuariosNodes[i].Get (j+1)));
 
       //Ya Conocemos el servidor elegido y el equipo que lo elige, instalamos el cliente en dicho servidor
       //poniendo como servAddress la dirección del equipo que lo ha elegido.
-      serv[i*usuariosXbus+j] = UdpClientHelper (csmaUsuariosInterfaces[i].GetAddress (j+1), port);
+      serv[i*usuariosXbus+j] = UdpClientHelper (p2pUsuariosInterfaces[i].GetAddress (j+1), port);
       serv[i*usuariosXbus+j].SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
       serv[i*usuariosXbus+j].SetAttribute ("Interval", TimeValue (interPacketInterval));
       serv[i*usuariosXbus+j].SetAttribute ("PacketSize", UintegerValue (tamPaqueteIn));
-      clientApps.Add (serv[i*usuariosXbus+j].Install (p2pNodes.Get (servidor+1)));
-
-      // E instalamos las aplicaciones de ping en el cliente
-      // V4PingHelper ping = V4PingHelper (p2pInterfaces[(int)servidor].GetAddress (1));
-      // //ping.SetAttribute ("Interval", TimeValue(Seconds(0.1+i*0.5)));
-      // NodeContainer pingers;
-      // pingers.Add (csmaUsuariosNodes[i].Get (j));
-      // pingApps.Add (ping.Install (pingers));
+      clientApps.Add (serv[i*usuariosXbus+j].Install (p2pServNodes.Get ((int)servidor+1)));
     }
   }
   clientApps.Start (Seconds (2.0));
   clientApps.Stop (Seconds (10.0));
-  // pingApps.Start (Seconds (2.0));
-  // pingApps.Stop (Seconds (10.0));
 
   NS_LOG_INFO("Habilitando pcap del equipo usuario nº1 del bus csma 1...");
-  csmaUsuarios[1].EnablePcap ("trabajo-psr", csmaUsuariosDevices[1].Get (1), true);
-  pointToPoint[0].EnablePcap ("trabajo-psr-Serv", p2pDevices[0].Get (1), true);
-
+  pointToPointUsuarios[0].EnablePcap ("trabajo-psr", p2pUsuariosDevices[0].Get (1), true);
+  pointToPointServ[0].EnablePcap ("trabajo-psr-Serv", p2pServDevices[0].Get (1), true);
 
   // Lanzamos la simulación
   NS_LOG_INFO("Simulando...");
